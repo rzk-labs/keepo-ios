@@ -1,0 +1,31 @@
+name: Keepo
+options:
+  bundleIdPrefix: com.rzklabs
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  Keepo:
+    type: application
+    platform: iOS
+    sources: [Keepo]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rzklabs.keepo
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: Keepo/Info.plist
+      properties:
+        CFBundleDisplayName: Keepo
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {UIColorName: ""}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        ITSAppUsesNonExemptEncryption: false
+        NSMicrophoneUsageDescription: Keepo memakai mikrofon untuk latihan mengucapkan kata. Suara tidak disimpan.
+        NSSpeechRecognitionUsageDescription: Keepo menilai ucapanmu saat latihan bicara.
+        WKAppBoundDomains: [rzk-labs.github.io, kepo-api.rizkachoirunnisa0403.workers.dev]

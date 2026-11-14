@@ -1,0 +1,32 @@
+name: build
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  sim:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ikon 1024 tanpa alpha
+        run: |
+          sips -z 1024 1024 icon-src.png --out /tmp/i.png
+          sips -s format jpeg /tmp/i.png --out /tmp/i.jpg
+          sips -s format png /tmp/i.jpg --out Keepo/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+      - run: brew install xcodegen && xcodegen generate
+      - name: Build simulator
+        run: |
+          xcodebuild -project Keepo.xcodeproj -scheme Keepo -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -20
+      - name: Jalankan di simulator + screenshot
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];print([x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')][-1])")
+          echo "UDID=$UDID"
+          xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/Keepo.app
+          xcrun simctl launch "$UDID" com.rzklabs.keepo
+          sleep 40
+          mkdir -p shots; xcrun simctl io "$UDID" screenshot shots/home.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshot
+          path: shots/
