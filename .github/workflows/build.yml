@@ -24,7 +24,7 @@ jobs:
           xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/Keepo.app
           xcrun simctl launch "$UDID" com.rzklabs.keepo
-          sleep 40
+          sleep 75
           mkdir -p shots; xcrun simctl io "$UDID" screenshot shots/home.png
           xcrun simctl spawn "$UDID" log show --last 3m --style compact --predicate 'eventMessage CONTAINS "KEEPO" OR (process == "Keepo" AND messageType == error)' > shots/log.txt || true
           tail -60 shots/log.txt
