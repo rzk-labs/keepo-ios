@@ -28,6 +28,9 @@ struct WebView: UIViewRepresentable {
         wv.uiDelegate = context.coordinator
         wv.allowsBackForwardNavigationGestures = false
         wv.scrollView.contentInsetAdjustmentBehavior = .never
+        if #available(iOS 16.4, *) { wv.isInspectable = true }
+        let errJS = WKUserScript(source: "window.__kerr=[];addEventListener('error',e=>__kerr.push(String(e.message)+' @'+e.filename+':'+e.lineno));addEventListener('unhandledrejection',e=>__kerr.push('rej '+String(e.reason)))", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        wv.configuration.userContentController.addUserScript(errJS)
         wv.isOpaque = false
         wv.backgroundColor = .clear
         context.coordinator.home = url
@@ -39,6 +42,16 @@ struct WebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var home: URL?
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            NSLog("KEEPO didFinish %@", webView.url?.absoluteString ?? "-")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                webView.evaluateJavaScript("JSON.stringify({t:document.title,len:document.body.innerText.length,txt:document.body.innerText.slice(0,200),err:window.__kerr||null})") { r, e in
+                    NSLog("KEEPO probe %@ %@", String(describing: r), String(describing: e))
+                }
+            }
+        }
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { NSLog("KEEPO didFail %@", error.localizedDescription) }
 
         // Link ke situs lain dibuka di Safari, bukan di dalam app
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -56,6 +69,7 @@ struct WebView: UIViewRepresentable {
 
         // Tanpa internet & belum ada cache: tampilkan pesan + tombol coba lagi
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            NSLog("KEEPO provFail %@", error.localizedDescription)
             let html = """
             <meta name=viewport content='width=device-width,initial-scale=1'>
             <body style='font-family:-apple-system;background:#F2EEE5;color:#351E28;display:flex;flex-direction:column;align-items:center;justify-content:center;height:90vh;text-align:center;padding:24px'>
