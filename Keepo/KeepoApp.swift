@@ -42,6 +42,7 @@ struct WebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var home: URL?
+        var shotsStarted = false
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             NSLog("KEEPO didFinish %@", webView.url?.absoluteString ?? "-")
@@ -49,6 +50,16 @@ struct WebView: UIViewRepresentable {
                 webView.evaluateJavaScript("JSON.stringify({t:document.title,len:document.body.innerText.length,txt:document.body.innerText.slice(0,200),err:window.__kerr||null})") { r, e in
                     NSLog("KEEPO probe %@ %@", String(describing: r), String(describing: e))
                 }
+            }
+            // Mode screenshot App Store (hanya bila diluncurkan dengan argumen -shots)
+            guard ProcessInfo.processInfo.arguments.contains("-shots"), !shotsStarted else { return }
+            shotsStarted = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                webView.evaluateJavaScript("document.querySelector('[data-try=en]')?.click(); 'sample'") { r, _ in NSLog("KEEPO shot %@", String(describing: r)) }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 35) {
+                let js = "(()=>{const w=[...document.querySelectorAll('.w')].filter(x=>{const b=x.getBoundingClientRect();return b.top>200&&b.top<innerHeight*0.45&&x.textContent.length>5});if(w[0]){w[0].click();return w[0].textContent}return 'none'})()"
+                webView.evaluateJavaScript(js) { r, _ in NSLog("KEEPO shot word %@", String(describing: r)) }
             }
         }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { NSLog("KEEPO didFail %@", error.localizedDescription) }
