@@ -42,9 +42,13 @@ jobs:
   # Upload ke TestFlight (manual): tanda tangan manual dengan sertifikat distribusi + profil App Store dari Secrets
   testflight:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - name: Pilih Xcode 26 terbaru
+        run: |
+          ls -d /Applications/Xcode*.app
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1); [ -n "$X" ] && sudo xcode-select -s "$X"; xcodebuild -version
       - name: Ikon 1024 tanpa alpha
         run: |
           sips -z 1024 1024 icon-src.png --out /tmp/i.png
