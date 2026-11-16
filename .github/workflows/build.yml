@@ -39,21 +39,34 @@ jobs:
           name: screenshot
           path: shots/
 
-  # Upload ke TestFlight: jalan manual, butuh Secrets APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_BASE64
+  # Upload ke TestFlight (manual): tanda tangan manual dengan sertifikat distribusi + profil App Store dari Secrets
   testflight:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Cek kunci
-        env: { T: "${{ secrets.APPLE_TEAM_ID }}", K: "${{ secrets.ASC_KEY_ID }}" }
-        run: test -n "$T" -a -n "$K" || { echo "::error::Secrets Apple belum diisi"; exit 1; }
       - name: Ikon 1024 tanpa alpha
         run: |
           sips -z 1024 1024 icon-src.png --out /tmp/i.png
           sips -s format jpeg /tmp/i.png --out /tmp/i.jpg
           sips -s format png /tmp/i.jpg --out Keepo/Assets.xcassets/AppIcon.appiconset/icon-1024.png
       - run: brew install xcodegen && xcodegen generate
+      - name: Sertifikat + profil
+        env:
+          P12: ${{ secrets.DIST_P12_BASE64 }}
+          P12PW: ${{ secrets.DIST_P12_PASSWORD }}
+          PROF: ${{ secrets.PROFILE_BASE64 }}
+        run: |
+          set -eo pipefail
+          KC=$RUNNER_TEMP/b.keychain-db; KP=$(uuidgen)
+          security create-keychain -p "$KP" "$KC"; security set-keychain-settings -lut 21600 "$KC"; security unlock-keychain -p "$KP" "$KC"
+          echo "$P12" | base64 --decode > $RUNNER_TEMP/d.p12
+          security import $RUNNER_TEMP/d.p12 -P "$P12PW" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KP" "$KC" >/dev/null
+          security list-keychain -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KC"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROF" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/keepo.mobileprovision
       - name: Archive + upload
         env:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
@@ -61,21 +74,23 @@ jobs:
           ISS: ${{ secrets.ASC_ISSUER_ID }}
           P8: ${{ secrets.ASC_KEY_P8_BASE64 }}
         run: |
-          echo "$P8" | base64 --decode > /tmp/key.p8
-          AUTH="-allowProvisioningUpdates -authenticationKeyPath /tmp/key.p8 -authenticationKeyID $KID -authenticationKeyIssuerID $ISS"
+          set -eo pipefail
+          echo "$P8" | base64 --decode > $RUNNER_TEMP/key.p8
           xcodebuild -project Keepo.xcodeproj -scheme Keepo -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath build/Keepo.xcarchive DEVELOPMENT_TEAM=$TEAM CODE_SIGN_STYLE=Automatic \
-            CURRENT_PROJECT_VERSION=${{ github.run_number }} $AUTH archive | tail -20
-          cat > /tmp/export.plist <<PL
+            -archivePath build/Keepo.xcarchive DEVELOPMENT_TEAM=$TEAM CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" PROVISIONING_PROFILE_SPECIFIER="Keepo AppStore" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} archive | tail -15
+          cat > $RUNNER_TEMP/export.plist <<PL
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
           <key>method</key><string>app-store-connect</string>
           <key>destination</key><string>upload</string>
           <key>teamID</key><string>$TEAM</string>
-          <key>signingStyle</key><string>automatic</string>
+          <key>signingStyle</key><string>manual</string>
+          <key>signingCertificate</key><string>Apple Distribution</string>
+          <key>provisioningProfiles</key><dict><key>com.rzklabs.keepo</key><string>Keepo AppStore</string></dict>
           </dict></plist>
           PL
-          sed -i '' 's/^          //' /tmp/export.plist
-          xcodebuild -exportArchive -archivePath build/Keepo.xcarchive -exportOptionsPlist /tmp/export.plist \
-            -exportPath build/export $AUTH | tail -20
+          xcodebuild -exportArchive -archivePath build/Keepo.xcarchive -exportOptionsPlist $RUNNER_TEMP/export.plist \
+            -exportPath build/export -authenticationKeyPath $RUNNER_TEMP/key.p8 -authenticationKeyID $KID -authenticationKeyIssuerID $ISS | tail -25
